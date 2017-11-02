@@ -4,15 +4,15 @@ We are big fans of GSM security aspects and radio in common, it was a great plea
 
 ## Radio 
 
-Since Task's description asks us to connect via `nc`, then we don't have choice except as to do it.
+Since Task's description asks us to connect via `nc`, then we don't have any choice except do it.
+
 ```bash
 nc 35.195.97.218 31337 | head -c 300
 Hey you're entering into secure zone. Enter Password: 
 ```
+The password is given to us: **antiNSAradiospy**.
 
-It was so kind to see the password `antiNSAradiospy` in the description. Pretty easy.
-
-Then we got some options to choose radio frequency in range `[2401, 2402, 2403, 2404, 2405, 2406, 2407, 2408, 2409, 2410, 2411]`. According to the description we got `I/Q`-data, for people who are not working with radio signals it is known as simple radio raw data.
+Then we got an option to choose radio frequency in range `[2401, 2402, 2403, 2404, 2405, 2406, 2407, 2408, 2409, 2410, 2411]`. After selecting a frequency we received some strange stream radio data. According to the description this is `I/Q`-data.
 
 Consider the first frequency signals.
 
@@ -63,23 +63,29 @@ Consider the first frequency signals.
 000002b0: 0000 703c 0000 8c3c 0000 703c 0000 903c  ..p<...<..p<...<
 ```
 
-The first thing we need to guess is `sample`-format. Assume it's `float` sample, it was a good choice :). To check this we need to open this raw data by any `sample`-reader, e.g [dusty](http://www.audacityteam.org/download/), therefore we got next picture.
+The first thing we need to guess is `sample`-format. Assume it's `float` sample. To check this we need to open this raw data by any `sample`-reader, e.g [dusty](http://www.audacityteam.org/download/), which provides next picture.
 
 ![1.jpg](1.jpg)
 
-To be sure we are right the picture must be looked as some kind of smooth signal, e.g sinusoidal. Seems like we guessed. You could try others samples and in most of cases there will be irregular signals. And now we are stuck, because we don't know any other parameters, e. g. sample rate and modulation. And we need some strong tools such as `gnuradio`, `bauline` and 'urh'. Yeas, we took them from the hint. We spend a lot of time on gnuradio, because it's popular and well supported, but it's too complicated to solve task in 24 hours. Well, `urh`, hm, just first time listen about it. Let's try!
+To be sure we are right the picture must be looked as some kind of smooth signal, e.g sinusoidal. Seems like we guessed. You could try others samples, but in most cases there will be irregular signals. And then we were stuck, because we didn't know any other parameters, e. g. sample rate and modulation. And we need some strong tools such as `gnuradio`, `baudline` and 'urh'. We spent a lot of time on gnuradio, because it's popular and well supported, but it's too complicated to solve the task in 24 hours. Then we decided to try [urh](https://github.com/jopohl/urh).
 
-Instead of `gnuradio` it involves pretty simple gnu and provides to analyze each signal parameter very easy. And we started to play wich such parameteres. Now the main task is to guess how much samples encode 1 bit! The `nrf` set `bit length` is equal to 100, but it looks wrong. We must to fix this parameter. By 100 samples phase shifts more than ones. We hope to find some printable text, there is why we need to find such `samples per bit` that provides one phase changing per one bit. 
+It involves pretty simple gui and provides to analyze each signal parameter very easy instead of [gnuradio](https://www.gnuradio.org/). And we started to play wich such parameteres. Now the main task is to guess how much samples encode 1 bit. 
+
+The `urh` sets `bit length` is equal to 100, but it looks wrong. By 100 samples phase shifts more than ones. We hope to find some printable text, there is why we need to find such `samples per bit` that provides one phase changing per one bit. 
 
 After a few tries we noticed that 8 bit length generates ascii text, which presented on picture below.
 
 ![2.png](2.png)
 
-Because of noise in the beginning of each burst most of texts is broken. Now we need clear this noise by hands. Yeas, we could write a script, but in the race to solve the task we didn't choose this way. After a few cuts we are able to see the text on every channel. Need to notice that on every channel text transmits repeately. 
+Because of noise in the beginning of each burst most of texts is broken. Now we need clear this noise by hands. We were able to write a script, but in the race to solve the task we didn't choose this way. After a few cuts we found the text on every channel. It's need to notice that text transmits repeately on every channel. 
 
 ![3.png](3.png)
 
-Now we got all texts. Let's read it. On channel `2405` we found a link to protocol and channel [description](https://pastebin.com/EF0TK9e0). On channel `2406` two NSA agents decided to create an encrypted channel. 
+Now we got all texts. Let's read it. 
+
+* On channel `2405` we found a link to protocol and channel [description](https://pastebin.com/EF0TK9e0) description. 
+
+* On channel `2406` two NSA agents decided to create an encrypted channel. 
 
 ~~~~
 UìÙÚ   í öl% u  Steve, I'm confused wi¿z@ [Pause: 1221 samples]
@@ -110,10 +116,10 @@ UìÙÚ  í öllh @ @E APause: 3671 samples]
 
 ## Crypto
 
-Well, now we got [private](https://pastebin.com/Di7LyG7Q) and [public](https://pastebin.com/eRFbC3BE) which are not paired! But Dave has showed his private key and has encrypted the message via Steve's public key. Let's investigate all keys.
+Well, now we got [private](https://pastebin.com/Di7LyG7Q) and [public](https://pastebin.com/eRFbC3BE) which are not paired! But Dave showed his private key and encrypted the message via Steve's public key. Let's investigate all keys.
 
 ```
-$ openssl rsa -in priv.key -noout -t
+$ openssl rsa -in priv.key -noout -text
 Private-Key: (511 bit)
 modulus:
     70:2b:a6:a1:20:93:e8:cf:cc:3c:fe:ca:c2:3c:cc:
@@ -176,7 +182,7 @@ Exponent:
     ba:df:92:d7
 ``` 
 
-Here we noticed equal modulus in each key, that means we could factorize modulus (just copy Prime1 = p and Prime2 = q from private key). We could easy restore `d` via Prime1 and Prime2, because we know Euler's function (p - 1) * (q - 1).
+Here we noticed the same modulus in both key, that means we could factorize it (just copy Prime1 = p and Prime2 = q from Steve's private key). We could obtain `d` via Prime1 and Prime2, because we know Euler's function which is equal to ```(p - 1) * (q - 1)```.
 Then we crafted Steve's private key and decrypted the message.
 
 ```
@@ -185,14 +191,7 @@ Then we crafted Steve's private key and decrypted the message.
 >>> d = 4538648915854388211234540417161289252275500091141222319032672425673169822257260179167723520509378727407182924655191246085357405296148645069316623846611719L
 >>> p = 94489403523262377040487838285070401786602935364398580685213134614587665136407L
 >>> q = 62174658240777778860434621000148846716157431607597179215305629229457616227121L
->>> key = RSA.construct(n,e,d,p,q)
-Traceback (most recent call last):
-  File "<stdin>", line 1, in <module>
-TypeError: construct() takes exactly 2 arguments (6 given)
 >>> key = RSA.construct((n,e,d,p,q))
->>> key
-<_RSAobj @0x34fd440 n(511),e,d,p,q,u,private>
->>> from binascii import unhexlify
 >>> ct = unhexlify('4acea423fbbc878fea55a2c41a9646d5712c670cd910a525ef061cc26f02f10ff9bba6ccf9baad0e99e3064b4512413c0b34e5933d6186f65d4fcda19a7e7a54')
 >>> key.decrypt(ct)
 'flag{stup1d_ns4_h4ck1ng_dev1ce_zn2017}'
